@@ -1,0 +1,17 @@
+# Gradle / build outputs
+.gradle/
+build/
+app/build/
+
+# Android Studio
+.idea/
+*.iml
+local.properties
+*.DS_Store
+
+# jbigkit source (user must download separately — see README.md)
+app/src/main/cpp/jbigkit/
+
+# Keystore
+*.jks
+*.keystore
