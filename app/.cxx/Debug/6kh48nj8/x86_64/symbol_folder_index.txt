@@ -1,0 +1,1 @@
+/home/arsen/clones/marklife-label-printer-web-kit/examples/android_d100_printer/app/build/intermediates/cxx/Debug/6kh48nj8/obj/x86_64

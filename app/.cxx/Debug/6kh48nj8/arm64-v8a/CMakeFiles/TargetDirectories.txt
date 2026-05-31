@@ -1,0 +1,3 @@
+/home/arsen/clones/marklife-label-printer-web-kit/examples/android_d100_printer/app/.cxx/Debug/6kh48nj8/arm64-v8a/CMakeFiles/jbig_encoder.dir
+/home/arsen/clones/marklife-label-printer-web-kit/examples/android_d100_printer/app/.cxx/Debug/6kh48nj8/arm64-v8a/CMakeFiles/edit_cache.dir
+/home/arsen/clones/marklife-label-printer-web-kit/examples/android_d100_printer/app/.cxx/Debug/6kh48nj8/arm64-v8a/CMakeFiles/rebuild_cache.dir

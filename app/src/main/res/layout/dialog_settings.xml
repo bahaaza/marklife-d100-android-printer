@@ -1,0 +1,99 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:orientation="vertical"
+    android:paddingTop="8dp"
+    android:paddingBottom="8dp">
+
+    <TextView
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="@string/settings_width_label"
+        android:textStyle="bold" />
+
+    <EditText
+        android:id="@+id/etWidthMm"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:hint="100"
+        android:inputType="number"
+        android:maxLines="1"
+        android:layout_marginBottom="12dp" />
+
+    <TextView
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="@string/settings_height_label"
+        android:textStyle="bold" />
+
+    <EditText
+        android:id="@+id/etHeightMm"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:hint="150"
+        android:inputType="number"
+        android:maxLines="1"
+        android:layout_marginBottom="12dp" />
+
+    <TextView
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="@string/settings_height_comp_label"
+        android:textStyle="bold" />
+
+    <EditText
+        android:id="@+id/etHeightCompMm"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:hint="2"
+        android:inputType="number"
+        android:maxLines="1"
+        android:layout_marginBottom="12dp" />
+
+    <TextView
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="@string/settings_printer_label"
+        android:textStyle="bold" />
+
+    <Spinner
+        android:id="@+id/spinnerPrinters"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginBottom="12dp" />
+
+    <TextView
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="@string/settings_paper_mode_label"
+        android:textStyle="bold" />
+
+    <Spinner
+        android:id="@+id/spinnerPaperMode"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginBottom="12dp" />
+
+    <CheckBox
+        android:id="@+id/cbAutoPrintOnShare"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="@string/settings_auto_print_on_share"
+        android:layout_marginBottom="12dp" />
+
+    <Button
+        android:id="@+id/btnTestConnection"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="@string/settings_test_connection" />
+
+    <TextView
+        android:id="@+id/tvTestResult"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="8dp"
+        android:text="@string/test_result_placeholder"
+        android:textSize="13sp" />
+
+</LinearLayout>

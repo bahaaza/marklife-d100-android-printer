@@ -1,0 +1,1 @@
+/home/arsen/clones/marklife-label-printer-web-kit/examples/android_d100_printer/app/src/main/cpp/CMakeLists.txt
