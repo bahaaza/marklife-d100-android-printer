@@ -1,7 +1,0 @@
-# ninja log v5
-1	35	1780268356004606718	CMakeFiles/jbig_encoder.dir/jbigkit/jbig_ar.c.o	7ad8294589872a23
-0	46	1780268356014606644	CMakeFiles/jbig_encoder.dir/jbig_jni.c.o	50c90f42977f87c2
-1	160	1780268356128605808	CMakeFiles/jbig_encoder.dir/jbigkit/jbig.c.o	347d9f4c3e1fdc15
-160	178	1780268356147605668	/home/arsen/clones/marklife-label-printer-web-kit/examples/android_d100_printer/app/build/intermediates/cxx/Debug/6kh48nj8/obj/armeabi-v7a/libjbig_encoder.so	e1445ae2fa6212ae
-0	25	1780269682358046609	CMakeFiles/jbig_encoder.dir/jbig_jni.c.o	50c90f42977f87c2
-25	44	1780269682378087524	/home/arsen/clones/marklife-label-printer-web-kit/examples/android_d100_printer/app/build/intermediates/cxx/Debug/6kh48nj8/obj/armeabi-v7a/libjbig_encoder.so	e1445ae2fa6212ae
