@@ -38,6 +38,8 @@ class D100Printer(
         val connected: Boolean,
         val deviceName: String,
         val deviceAddress: String,
+        val firmwareVersion: String?,
+        val serialNumber: String?,
         val statusPacketsHex: List<String>,
     )
 
@@ -75,9 +77,8 @@ class D100Printer(
             0x00, 0x46, 0xCB.b, 0x1B, 0x40,
         )
 
-        // Observed in the ready stream; sending this explicitly can return extra device info.
-        private val DEVICE_INFO_QUERY = byteArrayOf(0x1F, 0x28, 0x63, 0x0A, 0x00)
-        private val DEVICE_INFO_ASCII_QUERY = "DEVICE??".toByteArray(Charsets.US_ASCII)
+        private val FIRMWARE_VERSION_QUERY = byteArrayOf(0x1F, 0x1B, 0x1A, 0x1D, 0x03)
+        private val SERIAL_NUMBER_QUERY = byteArrayOf(0x1F, 0x1B, 0x1A, 0x1D, 0x00)
 
         private val PAGE_START = byteArrayOf(0x1A, 0x0C, 0xFF.toByte())
         private val PAGE_END = byteArrayOf(0x1A, 0x0C, 0x00) // page/continuous marker OFF
@@ -153,21 +154,18 @@ class D100Printer(
     fun testConnection(scanTimeoutMs: Long = 15_000): ConnectionTestResult {
         connect(scanTimeoutMs)
         return try {
-            val extraInfo = requestDeviceInfo()
-            // Keep the probe side effect (some devices only answer after explicit query),
-            // but do not expose SN/FW in the UI for now.
-            if (extraInfo.isNotEmpty()) {
-                lastHandshakeRawBytes = ByteArray(lastHandshakeRawBytes.size + extraInfo.size).also { out ->
-                    lastHandshakeRawBytes.copyInto(out, 0)
-                    extraInfo.copyInto(out, lastHandshakeRawBytes.size)
-                }
-            }
+            val firmwareVersion = queryD100Attribute(FIRMWARE_VERSION_QUERY)
+                ?: parseFirmwareVersion(lastHandshakeRawBytes)
+            val serialNumber = queryD100Attribute(SERIAL_NUMBER_QUERY)
+                ?: parseSerialNumber(lastHandshakeRawBytes)
 
             val packetHex = lastHandshakePackets.map { packet -> packet.toHexString() }
             ConnectionTestResult(
                 connected = true,
                 deviceName = lastConnectedDeviceName,
                 deviceAddress = lastConnectedDeviceAddress,
+                firmwareVersion = firmwareVersion,
+                serialNumber = serialNumber,
                 statusPacketsHex = packetHex,
             )
         } finally {
@@ -554,20 +552,52 @@ class D100Printer(
         return best
     }
 
-    private fun requestDeviceInfo(): ByteArray {
-        val out = output ?: return byteArrayOf()
+    private fun queryD100Attribute(command: ByteArray): String? {
+        val out = output ?: return null
+        val inp = input ?: return null
 
         return try {
-            out.write(DEVICE_INFO_QUERY)
+            drainInput(inp)
+            out.write(command)
             out.flush()
-            Thread.sleep(80)
-
-            out.write(DEVICE_INFO_ASCII_QUERY)
-            out.flush()
-
-            readAvailableBytes(DEVICE_INFO_READ_WINDOW_MS)
+            parseD100AttributeResponse(command, readAvailableBytes(DEVICE_INFO_READ_WINDOW_MS))
         } catch (_: Exception) {
-            byteArrayOf()
+            null
+        }
+    }
+
+    private fun parseD100AttributeResponse(command: ByteArray, bytes: ByteArray): String? {
+        if (bytes.size < command.size + 1) return null
+
+        var offset = 0
+        while (offset <= bytes.size - command.size - 1) {
+            var matches = true
+            for (i in command.indices) {
+                if (bytes[offset + i] != command[i]) {
+                    matches = false
+                    break
+                }
+            }
+
+            if (matches) {
+                val length = bytes[offset + command.size].toInt() and 0xFF
+                val start = offset + command.size + 1
+                val end = start + length
+                if (end <= bytes.size) {
+                    return String(bytes, start, length, Charsets.US_ASCII)
+                }
+                return null
+            }
+
+            offset++
+        }
+
+        return null
+    }
+
+    private fun drainInput(inp: InputStream) {
+        while (inp.available() > 0) {
+            inp.read()
         }
     }
 
