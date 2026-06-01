@@ -28,11 +28,16 @@ typedef struct {
     unsigned char *data;
     size_t         size;
     size_t         capacity;
+    int            failed;
 } OutBuf;
 
 static void jbig_output_cb(unsigned char *start, size_t len, void *arg)
 {
     OutBuf *buf = (OutBuf *)arg;
+
+    if (buf->failed) {
+        return;
+    }
 
     if (buf->size + len > buf->capacity) {
         size_t new_cap = buf->capacity == 0 ? 8192 : buf->capacity * 2;
@@ -41,6 +46,7 @@ static void jbig_output_cb(unsigned char *start, size_t len, void *arg)
         unsigned char *tmp = (unsigned char *)realloc(buf->data, new_cap);
         if (!tmp) {
             LOGE("Out of memory growing JBIG output buffer");
+            buf->failed = 1;
             return;
         }
         buf->data     = tmp;
@@ -97,7 +103,7 @@ Java_com_marklife_d100printer_JbigEncoder_encode(
     unsigned char *planes[1] = { (unsigned char *)pixels };
 
     struct jbg_enc_state state;
-    OutBuf out = { NULL, 0, 0 };
+    OutBuf out = { NULL, 0, 0, 0 };
 
     jbg_enc_init(&state,
                  (unsigned long)width,
@@ -128,6 +134,12 @@ Java_com_marklife_d100printer_JbigEncoder_encode(
     jbg_enc_free(&state);
 
     (*env)->ReleaseByteArrayElements(env, pixels_array, pixels, JNI_ABORT);
+
+    if (out.failed) {
+        LOGE("encode(): JBIG output buffer allocation failed");
+        free(out.data);
+        return NULL;
+    }
 
     if (!out.data || out.size == 0) {
         LOGE("encode(): JBIG encoding produced no output");

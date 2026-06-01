@@ -60,10 +60,12 @@ class MainActivity : AppCompatActivity() {
     private var currentShareToken: String? = null
     private var lastAutoPrintToken: String? = null
     private var lastAutoPrintStartedAtMs: Long = 0
+    private var currentPreviewBitmap: Bitmap? = null
 
     private enum class PendingAction {
         NONE,
         PRINT,
+        PRINT_BLANK,
         OPEN_SETTINGS,
     }
 
@@ -78,7 +80,7 @@ class MainActivity : AppCompatActivity() {
 
     private val pickPdfLauncher = registerForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
         if (uri != null) {
-            contentResolver.takePersistableUriPermission(uri, Intent.FLAG_GRANT_READ_URI_PERMISSION)
+            persistReadPermissionIfAvailable(uri)
             pendingPdfUri = uri
             pendingPdfUrl = null
             currentShareToken = "picked:${uri}"
@@ -105,6 +107,10 @@ class MainActivity : AppCompatActivity() {
         private const val DEFAULT_HEIGHT_MM = 150
         private const val DEFAULT_HEIGHT_COMP_MM = 2
         private const val DEFAULT_PAPER_MODE = D100Printer.PAPER_TYPE_GAP
+        private const val MIN_LABEL_MM = 1
+        private const val MAX_WIDTH_MM = 120
+        private const val MAX_HEIGHT_MM = 300
+        private const val MAX_HEIGHT_COMP_MM = 20
 
         private val REQUIRED_PERMISSIONS: Array<String> =
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
@@ -148,6 +154,12 @@ class MainActivity : AppCompatActivity() {
     override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)
         handleIncomingIntent(intent)
+    }
+
+    override fun onDestroy() {
+        currentPreviewBitmap?.recycle()
+        currentPreviewBitmap = null
+        super.onDestroy()
     }
 
     private fun handleIncomingIntent(intent: Intent) {
@@ -265,7 +277,7 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun onPrintBlankClicked() {
-        pendingAction = PendingAction.PRINT
+        pendingAction = PendingAction.PRINT_BLANK
         ensureBluetoothPermissions {
             startBlankTestPrint()
         }
@@ -290,9 +302,10 @@ class MainActivity : AppCompatActivity() {
     ) {
         super.onRequestPermissionsResult(requestCode, permissions, grantResults)
         if (requestCode == REQUEST_PERMISSIONS) {
-            if (grantResults.all { it == PackageManager.PERMISSION_GRANTED }) {
+            if (grantResults.isNotEmpty() && grantResults.all { it == PackageManager.PERMISSION_GRANTED }) {
                 when (pendingAction) {
                     PendingAction.PRINT -> startPendingPrint()
+                    PendingAction.PRINT_BLANK -> startBlankTestPrint()
                     PendingAction.OPEN_SETTINGS -> showSettingsDialog()
                     PendingAction.NONE -> Unit
                 }
@@ -345,6 +358,7 @@ class MainActivity : AppCompatActivity() {
         val copies = getRequestedCopies()
 
         lifecycleScope.launch {
+            var bitmaps: List<Bitmap> = emptyList()
             try {
                 val workingUri = withContext(Dispatchers.IO) { uriProvider() }
                 val stagedUri = withContext(Dispatchers.IO) { stagePdfForPrint(workingUri) }
@@ -352,13 +366,14 @@ class MainActivity : AppCompatActivity() {
                 pendingPdfUrl = null
 
                 setStatus("Rendering PDF…")
-                val bitmaps = withContext(Dispatchers.IO) {
+                bitmaps = withContext(Dispatchers.IO) {
                     PdfPageRenderer(contentResolver).renderAllPages(
                         uri = stagedUri,
                         widthDots = widthDots,
                         heightDots = heightDots,
                     )
                 }
+                val pageCount = bitmaps.size
 
                 setStatus("Connecting to D100…")
                 val printer = D100Printer(
@@ -378,19 +393,19 @@ class MainActivity : AppCompatActivity() {
                                 }
                                 printer.printBitmap(bitmap)
                             }
-                            bitmap.recycle()
                         }
                     } finally {
                         printer.disconnect()
                     }
                 }
 
-                setStatus("Done! ${bitmaps.size} page(s) printed.")
+                setStatus("Done! ${pageCount} page(s) printed.")
                 Toast.makeText(this@MainActivity, "Printed successfully!", Toast.LENGTH_SHORT).show()
             } catch (e: Exception) {
                 setStatus("Error: ${e.message}")
                 Toast.makeText(this@MainActivity, "Print failed: ${e.message}", Toast.LENGTH_LONG).show()
             } finally {
+                recycleBitmaps(bitmaps)
                 isPrinting = false
                 btnPrint.isEnabled = true
                 btnPrintBlank.isEnabled = true
@@ -521,8 +536,26 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun showPreviewBitmap(bitmap: Bitmap) {
+        currentPreviewBitmap?.takeIf { !it.isRecycled }?.recycle()
+        currentPreviewBitmap = bitmap
         ivPreview.setImageBitmap(bitmap)
         ivPreview.visibility = View.VISIBLE
+    }
+
+    private fun persistReadPermissionIfAvailable(uri: Uri) {
+        try {
+            contentResolver.takePersistableUriPermission(uri, Intent.FLAG_GRANT_READ_URI_PERMISSION)
+        } catch (_: SecurityException) {
+            // Some providers grant only transient access; staging still works while the app is active.
+        }
+    }
+
+    private fun recycleBitmaps(bitmaps: List<Bitmap>) {
+        bitmaps.forEach { bitmap ->
+            if (!bitmap.isRecycled) {
+                bitmap.recycle()
+            }
+        }
     }
 
     private fun extractFirstHttpUrl(text: String): String? {
@@ -700,9 +733,10 @@ class MainActivity : AppCompatActivity() {
                         ).testConnection()
 
                         buildString {
-                            appendLine("connected ${probe.connected}")
                             appendLine(getString(R.string.test_result_success))
                             appendLine("${getString(R.string.test_result_device)} ${probe.deviceName} (${probe.deviceAddress})")
+                            appendLine("${getString(R.string.test_result_firmware)} ${probe.firmwareVersion ?: getString(R.string.test_result_unknown)}")
+                            appendLine("${getString(R.string.test_result_serial)} ${probe.serialNumber ?: getString(R.string.test_result_unknown)}")
                             if (probe.statusPacketsHex.isNotEmpty()) {
                                 appendLine(getString(R.string.test_result_status_packets))
                                 probe.statusPacketsHex.forEachIndexed { index, packet ->
@@ -729,8 +763,13 @@ class MainActivity : AppCompatActivity() {
                 val heightMm = etHeight.text?.toString()?.toIntOrNull()
                 val heightCompMm = etHeightComp.text?.toString()?.toIntOrNull() ?: DEFAULT_HEIGHT_COMP_MM
 
-                if (widthMm == null || widthMm <= 0 || heightMm == null || heightMm <= 0) {
-                    setStatus("Label dimensions must be positive numbers.")
+                if (
+                    widthMm == null ||
+                    heightMm == null ||
+                    widthMm !in MIN_LABEL_MM..MAX_WIDTH_MM ||
+                    heightMm !in MIN_LABEL_MM..MAX_HEIGHT_MM
+                ) {
+                    setStatus("Label size must be ${MIN_LABEL_MM}-${MAX_WIDTH_MM}mm wide and ${MIN_LABEL_MM}-${MAX_HEIGHT_MM}mm high.")
                     return@setPositiveButton
                 }
 
@@ -750,7 +789,7 @@ class MainActivity : AppCompatActivity() {
                     PrintSettings(
                         widthMm = widthMm,
                         heightMm = heightMm,
-                        heightCompMm = heightCompMm.coerceIn(0, 20),
+                        heightCompMm = heightCompMm.coerceIn(0, MAX_HEIGHT_COMP_MM),
                         paperMode = paperMode,
                         printerAddress = printerAddress,
                         autoPrintOnShare = cbAutoPrint.isChecked,
@@ -761,7 +800,7 @@ class MainActivity : AppCompatActivity() {
                 } else {
                     getString(R.string.paper_mode_gap)
                 }
-                setStatus("Settings saved: ${widthMm}mm x ${heightMm}mm (+${heightCompMm.coerceIn(0, 20)}mm), $modeLabel.")
+                setStatus("Settings saved: ${widthMm}mm x ${heightMm}mm (+${heightCompMm.coerceIn(0, MAX_HEIGHT_COMP_MM)}mm), $modeLabel.")
             }
             .show()
     }
@@ -769,9 +808,9 @@ class MainActivity : AppCompatActivity() {
     private fun loadSettings(): PrintSettings {
         val prefs = getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
         return PrintSettings(
-            widthMm = prefs.getInt(PREF_WIDTH_MM, DEFAULT_WIDTH_MM),
-            heightMm = prefs.getInt(PREF_HEIGHT_MM, DEFAULT_HEIGHT_MM),
-            heightCompMm = prefs.getInt(PREF_HEIGHT_COMP_MM, DEFAULT_HEIGHT_COMP_MM),
+            widthMm = prefs.getInt(PREF_WIDTH_MM, DEFAULT_WIDTH_MM).coerceIn(MIN_LABEL_MM, MAX_WIDTH_MM),
+            heightMm = prefs.getInt(PREF_HEIGHT_MM, DEFAULT_HEIGHT_MM).coerceIn(MIN_LABEL_MM, MAX_HEIGHT_MM),
+            heightCompMm = prefs.getInt(PREF_HEIGHT_COMP_MM, DEFAULT_HEIGHT_COMP_MM).coerceIn(0, MAX_HEIGHT_COMP_MM),
             paperMode = prefs.getInt(PREF_PAPER_MODE, DEFAULT_PAPER_MODE),
             printerAddress = prefs.getString(PREF_PRINTER_ADDRESS, null),
             autoPrintOnShare = prefs.getBoolean(PREF_AUTO_PRINT_ON_SHARE, false),

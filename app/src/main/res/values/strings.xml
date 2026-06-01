@@ -42,5 +42,7 @@
     <string name="test_result_bluetooth_off">Bluetooth is off. Enable it and try again.</string>
     <string name="test_result_device">Device:</string>
     <string name="test_result_firmware">Firmware:</string>
+    <string name="test_result_serial">Serial:</string>
+    <string name="test_result_unknown">unknown</string>
     <string name="test_result_status_packets">Status packets (hex):</string>
 </resources>

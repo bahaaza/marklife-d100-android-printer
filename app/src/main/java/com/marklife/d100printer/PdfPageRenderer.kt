@@ -4,6 +4,7 @@ import android.content.ContentResolver
 import android.graphics.Bitmap
 import android.graphics.Canvas
 import android.graphics.Color
+import android.graphics.Rect
 import android.graphics.pdf.PdfRenderer
 import android.net.Uri
 import android.os.ParcelFileDescriptor
@@ -40,6 +41,10 @@ class PdfPageRenderer(private val resolver: ContentResolver) {
 
         return pfd.use {
             PdfRenderer(it).use { renderer ->
+                if (renderer.pageCount <= 0) {
+                    throw IllegalArgumentException("PDF has no pages.")
+                }
+
                 (0 until renderer.pageCount).map { i ->
                     renderer.openPage(i).use { page ->
                         renderPage(page, widthDots, heightDots)
@@ -83,7 +88,12 @@ class PdfPageRenderer(private val resolver: ContentResolver) {
         val pageBitmap = Bitmap.createBitmap(scaledW, scaledH, Bitmap.Config.ARGB_8888)
         val pageCanvas = Canvas(pageBitmap)
         pageCanvas.drawColor(Color.WHITE)
-        page.render(pageBitmap, null, null, PdfRenderer.Page.RENDER_MODE_FOR_PRINT)
+        page.render(
+            pageBitmap,
+            Rect(0, 0, scaledW, scaledH),
+            null,
+            PdfRenderer.Page.RENDER_MODE_FOR_PRINT
+        )
 
         // Place the rendered page on a full-label-size white canvas, centred.
         val labelBitmap = Bitmap.createBitmap(widthDots, heightDots, Bitmap.Config.ARGB_8888)
